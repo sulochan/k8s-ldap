@@ -1,0 +1,15 @@
+{
+	"BindDomain" : "example.com",
+	"BaseDN": "dc=example,dc=com",
+	"Filter": "(&(objectCategory=person)(objectClass=user)(samAccountName=%s))",
+	"MemberSearchAttribute": "memberOf",
+	"GroupRoles": {
+		"Engineers": ["admin"],
+		"Developers": ["read", "write"],
+		"Admins": ["read", "write"]
+	},
+	"UserRoles": {
+		"sulo.acharya": ["admin"],
+                "tom.smith": ["none"],
+	}
+}
