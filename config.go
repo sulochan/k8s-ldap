@@ -16,6 +16,9 @@ type Config struct {
 	MemberSearchAttribute string `json:"MemberSearchAttribute"`
 	GroupRoles map[string][]string `json:"GroupRoles"`
 	UserRoles  map[string][]string `json:"UserRoles"`
+	RestrictNamespaceAccess bool `json:"RestrictNamespaceAccess"`
+	UserNamespaces map[string][]string `json:"UserNamespaces"`
+	GroupNamespaces map[string][]string `json:"GroupNamespaces"`
 }
 
 var (
