@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-ldap/ldap/v3"
 	log "github.com/sirupsen/logrus"
+	"github.com/urfave/cli/v2"
 	"net/http"
 	"os"
 )
@@ -24,10 +25,55 @@ type TokenReview struct {
 }
 
 func main() {
-	ldapURL = "ldaps://" + os.Args[1]
+	app := &cli.App{
+		Name: "k8s-ldap",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:     "key",
+				Usage:    "key.pem to use for ssl",
+				Required: true,
+				EnvVars:  []string{"K8S_LDAP_KEY"},
+			},
+			&cli.StringFlag{
+				Name:     "cert",
+				Usage:    "cert.pem to use for ssl",
+				Required: true,
+				EnvVars:  []string{"K8S_LDAP_CERT"},
+			},
+			&cli.StringFlag{
+				Name:     "url",
+				Usage:    "ldap server url",
+				Required: true,
+				EnvVars:  []string{"K8S_LDAP_URL"},
+			},
+			&cli.StringFlag{
+				Name:     "config",
+				Usage:    "k8s-ldap config file",
+				Required: true,
+				EnvVars:  []string{"K8S_LDAP_CONFIG"},
+			},
+		},
+		Action: func(c *cli.Context) error {
+			RunServer(c)
+			return nil
+
+		},
+	}
+
+	err := app.Run(os.Args)
+	if err != nil {
+		log.Fatal("app.Run failed: ", err)
+	}
+}
+
+func RunServer(c *cli.Context) {
+	loadConfig(c)
+	ldapURL = "ldaps://" + c.String("url")
 	http.HandleFunc("/authenticate", AuthenticationHandler)
 	http.HandleFunc("/authorize", AuthorizationHandler)
-	log.Fatal(http.ListenAndServeTLS(":9191", os.Args[3], os.Args[2], nil))
+	log.Info("Starting Server ...")
+	log.Info("Using ", c.String("key"), "", c.String("cert"))
+	log.Fatal(http.ListenAndServeTLS(":443", c.String("cert"), c.String("key"), nil))
 }
 
 // AuthenticationHandler - handles authentication request from k8s api.
@@ -92,7 +138,7 @@ func getADGroups(username, password string) ([]string, error) {
 	// groups holds all the groups the user belongs to
 	groups := []string{}
 
-        // TODO: make this config var
+	// TODO: make this config var
 	config := &tls.Config{InsecureSkipVerify: true}
 
 	ldapConn, err := ldap.DialURL(ldapURL, ldap.DialWithTLSConfig(config))
