@@ -94,9 +94,9 @@ func AuthorizationHandler(w http.ResponseWriter, r *http.Request) {
 	if userConfig.RestrictNamespaceAccess {
 		// allow listing NS for everyone
 		if req.Spec.ResourceAttributes.Resource == "namespaces" && req.Spec.ResourceAttributes.Verb == "list" {
-                    req.Status["allowed"] = true
-		    json.NewEncoder(w).Encode(req)
-		    return
+			req.Status["allowed"] = true
+			json.NewEncoder(w).Encode(req)
+			return
 		}
 
 		if userNS, ok := userConfig.UserNamespaces[req.Spec.User]; ok {
