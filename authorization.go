@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	log "github.com/sirupsen/logrus"
 	"net/http"
 )
@@ -54,7 +55,7 @@ func hasString(s []string, val string) bool {
 // user can read, write and delete resources.
 func userHazVerb(roles []string, verb string) bool {
 	readVerbs := []string{"get", "watch", "list"}
-	writeVerbs := []string{"update", "patch"}
+	writeVerbs := []string{"update", "patch", "create"}
 	deleteVerbs := []string{"delete"}
 
 	for _, role := range roles {
@@ -92,64 +93,35 @@ func AuthorizationHandler(w http.ResponseWriter, r *http.Request) {
 	userConfig := GetConfig()
 
 	if userConfig.RestrictNamespaceAccess {
-		// allow listing NS for everyone
-		if req.Spec.ResourceAttributes.Resource == "namespaces" && req.Spec.ResourceAttributes.Verb == "list" {
-			req.Status["allowed"] = true
-			json.NewEncoder(w).Encode(req)
-			return
-		}
-
 		if userNS, ok := userConfig.UserNamespaces[req.Spec.User]; ok {
-			if hasString(userNS, "all") {
-				req.Status["allowed"] = true
-				json.NewEncoder(w).Encode(req)
-				return
-			} else {
-				// If user cant access NS and is trying to do anything other than list NS, reject.
-				if req.Spec.ResourceAttributes.Resource == "namespaces" && req.Spec.ResourceAttributes.Verb != "list" {
+			if !hasString(userNS, "all") {
+				if !hasString(userNS, req.Spec.ResourceAttributes.Namespace) {
 					req.Status["allowed"] = false
 					json.NewEncoder(w).Encode(req)
 					return
 				}
-				if hasString(userNS, req.Spec.ResourceAttributes.Namespace) {
-					req.Status["allowed"] = true
-					json.NewEncoder(w).Encode(req)
-					return
-				}
-
 			}
-
 		}
 
 		for _, group := range req.Spec.Group {
 			if groupNS, ok := userConfig.GroupNamespaces[group]; ok {
-				if hasString(groupNS, "all") {
-					req.Status["allowed"] = true
+				// If user cant access NS and is trying to do anything other than list NS, reject.
+				if req.Spec.ResourceAttributes.Resource == "namespaces" && req.Spec.ResourceAttributes.Verb != "list" {
+					log.Info(fmt.Sprintf("Access denied for %s %s", req.Spec.ResourceAttributes.Resource, req.Spec.ResourceAttributes.Verb))
+					req.Status["allowed"] = false
 					json.NewEncoder(w).Encode(req)
 					return
-				} else {
-					// If user cant access NS and is trying to do anything other than list NS, reject.
-					if req.Spec.ResourceAttributes.Resource == "namespaces" && req.Spec.ResourceAttributes.Verb != "list" {
-						log.Info(req.Spec.ResourceAttributes.Resource, req.Spec.ResourceAttributes.Verb)
+				}
+
+				if !hasString(groupNS, "all") {
+					if !hasString(groupNS, req.Spec.ResourceAttributes.Namespace) {
 						req.Status["allowed"] = false
 						json.NewEncoder(w).Encode(req)
 						return
 					}
-					if hasString(groupNS, req.Spec.ResourceAttributes.Namespace) {
-						req.Status["allowed"] = true
-						json.NewEncoder(w).Encode(req)
-						return
-					}
 				}
-
 			}
 		}
-
-		// default is to restrict all
-		log.Info("No matching namespace policy in group or user, deny request")
-		req.Status["allowed"] = false
-		json.NewEncoder(w).Encode(req)
-		return
 	}
 
 	if roles, ok := userConfig.UserRoles[req.Spec.User]; ok {
@@ -160,12 +132,10 @@ func AuthorizationHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if userHazVerb(roles, req.Spec.ResourceAttributes.Verb) {
-			log.Info("User haz verb")
 			req.Status["allowed"] = true
 			json.NewEncoder(w).Encode(req)
 			return
 		} else {
-			log.Info("User permission not in read/write/delete. No access allowed.")
 			req.Status["allowed"] = false
 			json.NewEncoder(w).Encode(req)
 			return
@@ -175,14 +145,12 @@ func AuthorizationHandler(w http.ResponseWriter, r *http.Request) {
 	for _, group := range req.Spec.Group {
 		if roles, ok := userConfig.GroupRoles[group]; ok {
 			if IsAdmin(roles) {
-				log.Info("group is admin")
 				req.Status["allowed"] = true
 				json.NewEncoder(w).Encode(req)
 				return
 			}
 
 			if userHazVerb(roles, req.Spec.ResourceAttributes.Verb) {
-				log.Info("group haz verb")
 				req.Status["allowed"] = true
 				json.NewEncoder(w).Encode(req)
 				return
